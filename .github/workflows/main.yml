@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [ projects/ml-app-cicd ]
+  pull_request:
+    branches: [ projects/ml-app-cicd ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run make command
+        run: make hello
