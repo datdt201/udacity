@@ -1,2 +1,6 @@
 .DS_Store
 .terraform
+.venv
+.idea
+.vscode
+.udacity-devops
