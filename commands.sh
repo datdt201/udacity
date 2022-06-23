@@ -1,0 +1,1 @@
+az webapp up --name datdt201-ml-service --resource-group Azuredevops

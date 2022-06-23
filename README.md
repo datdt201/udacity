@@ -1,8 +1,15 @@
+[![Testing with GitHub Actions](https://github.com/datdt201/udacity/actions/workflows/pythonapp.yml/badge.svg?branch=projects%2Fml-app-cicd)](https://github.com/datdt201/udacity/actions/workflows/pythonapp.yml)
+
 # Overview
-This project will demonstrate CICD process for a Python Flask app, using GitHub Actions (CI) and Azure DevOps (CD).
+This project will demonstrate how to apply Continuous Integration (CI) and Continuous Delivery (CD) for Python based application.
+After this project, you will be able to:
+- Deploy a Machine Learning API written in Python Flask to Azure App Service.
+- Build a CI pipeline using GitHub Actions
+- Build a CD pipeline using Azure DevOps
 
 ## Project Plan
-* Taks management with [Trello board](https://trello.com/invite/b/6Bz6jB9R/3a213e8941dc4cbe1ba5a640b385f6d0/udacity-ml-app)
+* [Project plan](docs/project-plan.xlsx)
+* [Tasks Kanban](https://trello.com/b/6Bz6jB9R/udacity-ml-app)
 
 ## Architectural Diagram
 ![](docs/screenshots/architecture-diagram.png)
@@ -27,6 +34,8 @@ source .udacity-devops/bin/activate
 make all
 ```
 ![](docs/screenshots/lint-test.png)
+This steps also be triggered automatically by GitHub Actions when new code is pushed
+![](docs/screenshots/github-actions.png)
 
 * Deploy project to Azure App Service
 ```
@@ -42,7 +51,9 @@ make web-app
 ![](docs/screenshots/azure-devops-pipeline-2.png)
 
 ### Verify application
-* Prediction from deployed flask app in Azure Cloud Shell.
+* Go to Azure Portal confirm created App Service
+![](docs/screenshots/app-service.png)
+* Call prediction API from Azure Cloud Shell.
 The output should look similar to this:
 ![](docs/screenshots/ml-predict.png)
 
@@ -54,8 +65,10 @@ az webapp log tail --resource-group Azuredevops --name datdt201-ml-service
 
 ## Enhancements
 Following item can be done next to improve the project.
+* Build application as image and do a containerized deployment
+* Add more testing like integration test to the pipelines
 * Define user parameters for Azure DevOps pipelines 
-* Split build and deploy stages into 2 pipelines so that we can re-use built artifact to deploy to different environment 
+* Split build and deploy stages into 2 pipelines so that we can re-use built artifact to deploy to different environment
 
 ## Demo
 https://drive.google.com/drive/folders/1TdfaIawMK1bubP72bB8fFJbIo_u5C8I8?usp=sharing
