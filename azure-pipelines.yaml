@@ -1,0 +1,126 @@
+name: Azure Pipelines
+
+variables:
+  python.version: '3.7.6'
+
+stages:
+- stage: Build
+  jobs:
+  - job: IntegrationTest
+    steps:
+    - script: |
+        npm install -g newman
+      displayName: Install Newman
+    - script: |
+        newman run regression-test.json -e TEST-environment.json -r junit,cli
+        newman run data-validation-test.json -e TEST-environment.json -r junit,cli
+      displayName: Run integration test
+      workingDirectory: $(System.DefaultWorkingDirectory)/automatedtesting/postman
+      continueOnError: 'true'
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: JUnit
+        testResultsFiles: '*.xml'
+        searchFolder: '$(System.DefaultWorkingDirectory)/automatedtesting/postman/newman'
+        mergeTestResults: true
+        testRunTitle: 'Integration Test'
+  - job: BuildFakeRestAPI
+    steps:
+    - task: ArchiveFiles@2
+      displayName: 'Archive FakeRestAPI'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/automatedtesting/jmeter/fakerestapi'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)-fakerestapi.zip'
+    - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId)-fakerestapi.zip
+      displayName: 'Upload Package'
+      artifact: drop-fakerestapi
+  - job: UploadUITest
+    steps:
+    - publish: '$(System.DefaultWorkingDirectory)/automatedtesting/selenium/login.py'
+      displayName: 'Upload UI Test Suite'
+      artifact: ui-test
+
+- stage: Deploy
+  jobs:
+  - job: ProvisionAzureResources
+    steps:
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg software-properties-common curl
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+          sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+          sudo apt-get update
+          sudo apt-get install terraform
+        displayName: 'Install Terraform'
+      - script: |
+          echo $(SSH_PUBLIC_KEY) > id_rsa.pub
+          terraform init -backend-config=backend.conf
+          terraform apply -auto-approve
+          terraform output -raw vm_public_ip
+        displayName: 'Apply Terraform'
+        workingDirectory: $(System.DefaultWorkingDirectory)/terraform/environments/test
+  - deployment: DeployFakeRestAPI
+    dependsOn: ProvisionAzureResources
+    environment: TEST
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure Web App'
+            inputs:
+              azureSubscription: 'Azure Udacity'
+              appName: 'datdt201udacity-AppService'
+              appType: webApp
+              package: $(Pipeline.Workspace)/drop-fakerestapi/$(Build.BuildId)-fakerestapi.zip
+  - deployment: UITest
+    dependsOn: ProvisionAzureResources
+    environment:
+      name: TEST
+      resourceType: VirtualMachine
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: |
+              sudo apt-get update
+              sudo apt-get upgrade -y
+              sudo apt-get install python3-pip unzip chromium-browser -y
+              pip3 install selenium
+              wget https://chromedriver.storage.googleapis.com/101.0.4951.41/chromedriver_linux64.zip
+              unzip chromedriver_linux64.zip
+              rm -rf chromedriver_linux64.zip
+              sudo mv chromedriver /usr/bin/
+            displayName: Install Selenium
+          - script: |
+              python3 ../ui-test/login.py
+              sudo mv selenium.log /var/log/selenium-udacity.log
+              sudo chmod -R 775 /var/log/selenium-udacity.log
+            displayName: Run UI test
+  - job: PerformanceTest
+    dependsOn: DeployFakeRestAPI
+    steps:
+      - script: |
+          wget https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.5.zip
+          unzip apache-jmeter-5.5.zip
+          mkdir test-result
+        displayName: 'Install JMeter'
+        workingDirectory: $(System.DefaultWorkingDirectory)/automatedtesting/jmeter
+      - script: |
+          apache-jmeter-5.5/bin/jmeter -n -t stress-test.jmx -j stress-test.log -l stress-test.jtl -e -o test-result/stress-test
+          apache-jmeter-5.5/bin/jmeter -n -t endurance-test.jmx -j endurance-test.log -l endurance-test.jtl -e -o test-result/endurance-test
+        displayName: 'Run performance test'
+        workingDirectory: $(System.DefaultWorkingDirectory)/automatedtesting/jmeter
+      - task: ArchiveFiles@2
+        displayName: 'Archive FakeRestAPI'
+        inputs:
+          rootFolderOrFile: '$(System.DefaultWorkingDirectory)/automatedtesting/jmeter/test-result'
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)-jmeter-test-result.zip'
+      - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId)-jmeter-test-result.zip
+        displayName: 'Upload Package'
+        artifact: jmeter
+      
